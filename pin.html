@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>DIGIY MARKET PRO — GO PIN</title>
+  <meta name="theme-color" content="#0b1020" />
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./guard.js?v=marketpro-1"></script>
+
+  <style>
+    :root{
+      --bg:#0b1020;--card:#0f172a;--line:rgba(148,163,184,.18);
+      --ink:#f8fafc;--muted:#a5b4fc;--accent:#facc15;--ok:#22c55e;--bad:#f97373;
+    }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{
+      margin:0; background:radial-gradient(1200px 800px at 20% 0%, rgba(250,204,21,.12), transparent 55%),
+      radial-gradient(900px 700px at 90% 20%, rgba(34,197,94,.10), transparent 55%),
+      linear-gradient(180deg,#050816,#0b1020);
+      color:var(--ink);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;
+      display:grid; place-items:center; padding:18px;
+    }
+    .box{
+      width:min(520px,100%);
+      background:rgba(15,23,42,.72);
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:18px;
+      box-shadow:0 24px 80px rgba(0,0,0,.45);
+      backdrop-filter: blur(10px);
+    }
+    .top{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+    .logo{
+      width:44px;height:44px;border-radius:14px;
+      display:grid;place-items:center;
+      background:linear-gradient(135deg, rgba(250,204,21,.25), rgba(250,204,21,.05));
+      border:1px solid rgba(250,204,21,.25);
+      font-size:20px;
+    }
+    h1{margin:0;font-size:16px;letter-spacing:.4px}
+    .sub{margin:2px 0 0 0;color:rgba(226,232,240,.75);font-size:12px}
+    label{display:block;margin:10px 0 6px 0;font-weight:900;font-size:12px;color:rgba(226,232,240,.85)}
+    input{
+      width:100%; padding:12px 12px; border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(2,6,23,.55);
+      color:var(--ink); font-size:15px; outline:none;
+    }
+    input:focus{border-color:rgba(250,204,21,.45)}
+    .pin{letter-spacing:10px;text-align:center;font-weight:1000;font-size:22px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    button{
+      flex:1 1 160px;
+      padding:12px 12px;border-radius:12px;border:1px solid var(--line);
+      background:rgba(2,6,23,.35); color:var(--ink);
+      font-weight:1000; cursor:pointer;
+    }
+    button.primary{
+      background:linear-gradient(135deg, rgba(250,204,21,.22), rgba(250,204,21,.10));
+      border-color:rgba(250,204,21,.35);
+    }
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .msg{
+      display:none; margin-top:12px;
+      padding:10px 12px;border-radius:12px;border:1px solid var(--line);
+      font-size:12px;
+    }
+    .msg.show{display:block}
+    .msg.ok{border-color:rgba(34,197,94,.35); color:#bbf7d0}
+    .msg.bad{border-color:rgba(249,115,115,.35); color:#fecaca}
+    .hint{margin-top:10px;color:rgba(226,232,240,.62);font-size:12px}
+    .mini{opacity:.8}
+    code{background:rgba(2,6,23,.35);border:1px solid var(--line);padding:1px 6px;border-radius:8px}
+  </style>
+</head>
+
+<body>
+  <div class="box">
+    <div class="top">
+      <div class="logo">🛒</div>
+      <div>
+        <h1>DIGIY MARKET PRO</h1>
+        <div class="sub">GO PIN — Accès commerçant</div>
+      </div>
+    </div>
+
+    <form id="f">
+      <label>Slug boutique</label>
+      <input id="slug" autocomplete="off" placeholder="ex: chez-astou-boutique" />
+
+      <label>PIN</label>
+      <input id="pin" class="pin" autocomplete="off" inputmode="numeric" maxlength="12" placeholder="••••" />
+
+      <div class="row">
+        <button class="primary" id="btn" type="submit">🔓 Ouvrir mon cockpit</button>
+        <button type="button" id="btnClear">🧹 Reset</button>
+      </div>
+    </form>
+
+    <div class="msg" id="msg"></div>
+
+    <div class="hint">
+      Astuce: si tu arrives depuis un lien <code>?slug=...</code>, le slug sera pré-rempli.
+      <div class="mini">Session longue (90 jours) pour usage terrain.</div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (s)=>document.querySelector(s);
+    const msg = $("#msg");
+    const btn = $("#btn");
+
+    function show(type, text){
+      msg.className = "msg show " + (type || "");
+      msg.textContent = text || "";
+    }
+
+    function getUrlSlug(){
+      try{
+        return (new URLSearchParams(location.search).get("slug") || "").trim();
+      }catch(_){ return ""; }
+    }
+
+    // prefill slug
+    const initialSlug = getUrlSlug() || localStorage.getItem("DIGIY_SLUG") || "";
+    $("#slug").value = initialSlug;
+
+    $("#btnClear").onclick = ()=>{
+      localStorage.removeItem("DIGIY_MARKET_PRO_SESSION_V1");
+      show("ok","Reset OK. Tu peux te reconnecter.");
+    };
+
+    $("#f").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      if(!window.DIGIY_GUARD?.loginWithPin){
+        show("bad","Guard absent. Vérifie guard.js");
+        return;
+      }
+
+      const slug = $("#slug").value.trim();
+      const pin  = $("#pin").value.trim();
+
+      if(!slug || !pin){
+        show("bad","Slug et PIN requis.");
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "Connexion…";
+      show("", "Vérification…");
+
+      try{
+        const r = await window.DIGIY_GUARD.loginWithPin(slug, pin);
+        if(!r.ok){
+          show("bad", r.error || "Accès refusé.");
+          btn.disabled = false;
+          btn.textContent = "🔓 Ouvrir mon cockpit";
+          return;
+        }
+
+        show("ok","Accès OK. Ouverture…");
+        const s = r.session?.slug || slug;
+
+        // GH pages safe
+        location.replace("./index.html?slug=" + encodeURIComponent(s));
+      }catch(err){
+        console.error(err);
+        show("bad","Erreur: " + (err?.message || "inconnue"));
+        btn.disabled = false;
+        btn.textContent = "🔓 Ouvrir mon cockpit";
+      }
+    });
+  </script>
+</body>
+</html>
