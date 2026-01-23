@@ -143,13 +143,38 @@
       try{return new URLSearchParams(location.search).get(k) || ""}catch(_){return ""}
     }
 
-    const saleId = qp("sale_id");
-    const slug   = qp("slug");
-    const ownerId = localStorage.getItem("DIGIY_PRO_ID") || ""; // venant du guard
+   // =============================
+// CONTEXTE SÉCURISÉ (AIGLE MODE)
+// =============================
 
-    if(!saleId){ err("sale_id manquant dans l’URL"); return; }
+// sale_id : URL > session (si stocké) > localStorage
+const saleId = (
+  qp("sale_id") ||
+  window.DIGIY_GUARD?.getSession?.()?.sale_id ||
+  localStorage.getItem("DIGIY_LAST_SALE_ID") ||
+  ""
+).trim();
 
-    $("saleIdShort").textContent = saleId.slice(0,8) + "…";
+// slug : URL > guard > localStorage
+const slug = (
+  qp("slug") ||
+  window.DIGIY_GUARD?.getSlug?.() ||
+  localStorage.getItem("DIGIY_SLUG") ||
+  ""
+).trim();
+
+// owner_id : guard session > localStorage
+const ownerId = (
+  window.DIGIY_GUARD?.getSession?.()?.owner_id ||
+  localStorage.getItem("DIGIY_PRO_ID") ||
+  ""
+).trim();
+
+console.log("CTX READY 🦅", { saleId, slug, ownerId });
+
+if(!saleId){
+  console.warn("⚠️ sale_id manquant — ticket non annulable");
+}
 
     function money(x){
       const n = Number(x||0);
