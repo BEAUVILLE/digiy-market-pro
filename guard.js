@@ -263,6 +263,4 @@
 
   // sync dès chargement
   syncSlugFromUrl();
-
-  console.log("🦅 DIGIY MARKET PRO Guard loaded");
 })();
