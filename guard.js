@@ -155,55 +155,59 @@
     location.replace(withSlug(url));
   }
 
-  // =============================
-  // LOGIN (slug + pin -> RPC)
-  // =============================
-  async function loginWithPin(slug, pin){
-    const sb = getSb();
-    if(!sb) return { ok:false, error:"Supabase non initialisé (script Supabase manquant ou bloqué)" };
+// =============================
+// LOGIN (slug + phone + pin -> RPC)
+// =============================
+async function loginWithPin(slug, phone, pin){
+  const sb = getSb();
+  if(!sb) return { ok:false, error:"Supabase non initialisé (script Supabase manquant ou bloqué)" };
 
-    slug = cleanSlug(slug);
-    pin  = String(pin || "").trim();
+  // normalize
+  slug  = cleanSlug(slug);
+  phone = String(phone || "").trim();
+  pin   = String(pin || "").trim();
 
-    if(!slug || !pin) return { ok:false, error:"Slug et PIN requis" };
-
-    const payload = {
-      p_slug: slug,
-      p_pin: pin
-      // si ton RPC attend module:
-      // ,p_module: "market_pro"
-    };
-
-    const { data, error } = await sb.rpc("verify_access_pin", payload);
-    if(error) return { ok:false, error: error.message };
-
-    const res = (typeof data === "string") ? safeJsonParse(data) : data;
-    if(!res?.ok || !res?.owner_id){
-      return { ok:false, error: res?.error || "PIN invalide" };
-    }
-
-    // session + mirrors
-    const session = setSession({
-      ok: true,
-      module: "market_pro",
-      owner_id: res.owner_id,
-      slug: cleanSlug(res.slug || slug),
-      title: res.title || "",
-      phone: res.phone || ""
-    });
-
-    // mirrors utiles cross-modules
-    lsSet(K.PRO_ID, session.owner_id);
-    lsSet(K.SLUG, session.slug);
-    if(session.title) lsSet(K.TITLE, session.title);
-    if(session.phone) lsSet(K.PHONE, session.phone);
-
-    return { ok:true, session };
+  if(!slug || !phone || !pin){
+    return { ok:false, error:"Slug, téléphone et PIN requis" };
   }
 
-  function safeJsonParse(s){
-    try{ return JSON.parse(s); }catch(_){ return null; }
+  const payload = {
+    p_phone: phone,
+    p_pin: pin,
+    p_slug: slug,
+    p_module: "market_pro"
+  };
+
+  const { data, error } = await sb.rpc("verify_access_pin", payload);
+  if(error) return { ok:false, error: error.message };
+
+  const res = (typeof data === "string") ? safeJsonParse(data) : data;
+
+  // debug terrain (tu peux enlever après)
+  console.log("VERIFY_ACCESS_PIN_RES", res);
+
+  if(!res?.ok || !res?.owner_id){
+    return { ok:false, error: res?.reason || res?.error || "Accès refusé" };
   }
+
+  // session + mirrors
+  const session = setSession({
+    ok: true,
+    module: "market_pro",
+    owner_id: res.owner_id,
+    slug: cleanSlug(res.slug || slug),
+    title: res.title || "",
+    phone: res.phone || phone
+  });
+
+  // mirrors utiles cross-modules
+  lsSet(K.PRO_ID, session.owner_id);
+  lsSet(K.SLUG, session.slug);
+  if(session.title) lsSet(K.TITLE, session.title);
+  if(session.phone) lsSet(K.PHONE, session.phone);
+
+  return { ok:true, session };
+}
 
   // =============================
   // PROTECTION / BOOT
