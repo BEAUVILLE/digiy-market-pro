@@ -210,24 +210,40 @@
           <div class="totRow"><div class="bigTotal">TOTAL</div><div class="bigTotal" id="tTotal">0 FCFA</div></div>
         </div>
 
-        <div class="payGrid">
-          <div class="label">Paiement</div>
-          <div class="payRow">
-            <input id="payCash" class="input" inputmode="numeric" placeholder="Cash (FCFA) ex: 3000" />
-            <input id="payWave" class="input" inputmode="numeric" placeholder="Wave (FCFA) ex: 2000" />
-            <input id="payWaveRef" class="input" placeholder="Ref Wave (option)" />
-          </div>
-          <div class="payRow">
-            <button class="btn gold" id="btnCheckout">💸 Encaisser</button>
-            <button class="btn" id="btnTicket">🧾 Ouvrir ticket</button>
-          </div>
-          <div class="hint">Encaisser crée le ticket + sort le stock. Ensuite on enregistre le paiement mix.</div>
-          <div class="toast" id="payToast">—</div>
-        </div>
-      </div>
+     <div class="payGrid">
+  <div class="label">Paiement</div>
 
-    </div>
-  </main>
+  <div class="payRow">
+    <input id="payCash" class="input" inputmode="numeric"
+           placeholder="Cash (FCFA) ex: 3000" />
+    <input id="payWave" class="input" inputmode="numeric"
+           placeholder="Wave (FCFA) ex: 2000" />
+    <input id="payWaveRef" class="input"
+           placeholder="Ref Wave (option)" />
+  </div>
+
+  <div class="payRow">
+    <button class="btn gold" id="btnCheckout">💸 Encaisser</button>
+    <button class="btn" id="btnTicket">🧾 Ouvrir ticket</button>
+  </div>
+
+  <!-- ✅ Livraison / FRET doit être ici -->
+  <div class="payRow">
+    <input id="deliveryId" class="input"
+           placeholder="UUID Livraison / FRET (option)" />
+    <button class="btn cyan" id="btnConfirmReceived">
+      ✅ Confirmer reçu
+    </button>
+  </div>
+
+  <div class="hint">
+    Encaisser crée le ticket + sort le stock.
+    Ensuite on enregistre le paiement mix.
+  </div>
+
+  <div class="toast" id="payToast">—</div>
+</div>
+
 
   <script>
     const $ = (s)=>document.querySelector(s);
@@ -552,6 +568,41 @@
 
     $("#btnCheckout").onclick = checkout;
 
+// ✅ Confirm delivery received (Vinted/FRET) -> RPC déjà posée
+$("#btnConfirmReceived")?.addEventListener("click", async ()=>{
+  const payToast = $("#payToast");
+  try{
+    const x = sb(); if(!x) throw new Error("Supabase non prêt");
+
+    const saleId = (localStorage.getItem("DIGIY_LAST_SALE_ID") || "").trim();
+    const deliveryId = String($("#deliveryId")?.value || "").trim()
+      || (localStorage.getItem("DIGIY_LAST_DELIVERY_ID") || "").trim();
+
+    if(!saleId) throw new Error("Encaisse d'abord un ticket (sale_id manquant).");
+    if(!deliveryId) throw new Error("UUID Livraison/FRET manquant.");
+
+    toast(payToast, "Validation réception…", "");
+
+    const { data, error } = await x.rpc("market_confirm_delivery_received_v1", {
+      p_slug: CTX.slug,
+      p_owner_id: CTX.owner_id,
+      p_sale_id: saleId,
+      p_delivery_id: deliveryId
+    });
+
+    if(error) throw new Error(error.message);
+
+    const res = (typeof data === "string") ? safeJson(data) : data;
+    if(!res?.ok) throw new Error(res?.reason || "Refus confirmation");
+
+    localStorage.setItem("DIGIY_LAST_DELIVERY_ID", deliveryId);
+    toast(payToast, "✅ Reçu confirmé • Ticket PAID", "ok");
+  }catch(e){
+    console.error(e);
+    toast(payToast, "❌ " + (e?.message || "Erreur"), "bad");
+  }
+});
+    
     $("#btnTicket").onclick = ()=>{
       const saleId = (localStorage.getItem("DIGIY_LAST_SALE_ID") || "").trim();
       if(!saleId){
