@@ -240,12 +240,15 @@
     Encaisser crée le ticket + sort le stock.
     Ensuite on enregistre le paiement mix.
   </div>
+          <div class="toast" id="payToast">—</div>
+      </div> <!-- /payGrid -->
 
-  <div class="toast" id="payToast">—</div>
-</div>
+    </div> <!-- /card c7 -->
+  </div>   <!-- /grid -->
+</main>
 
+<script>
 
-  <script>
     const $ = (s)=>document.querySelector(s);
 
     function setStatus(txt){
@@ -474,6 +477,9 @@
       // ✅ mémorise dernier ticket (c’est ICI)
       localStorage.setItem("DIGIY_LAST_SALE_ID", saleId);
 
+      const deliveryId0 = String($("#deliveryId")?.value || "").trim();
+      if(deliveryId0) localStorage.setItem("DIGIY_LAST_DELIVERY_ID", deliveryId0);
+      
       // 2) set payments mix (optional)
       const payments = [];
       if(cash > 0) payments.push({ method:"cash", amount: Math.round(cash) });
